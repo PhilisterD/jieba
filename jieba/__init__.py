@@ -105,14 +105,14 @@ class Tokenizer(object):
         return lfreq, ltotal
 
     def initialize(self, dictionary=None): # 初始化
-        if dictionary:
+        if dictionary: # 如果指定了字典
             abs_path = _get_abs_path(dictionary)
             if self.dictionary == abs_path and self.initialized:
                 return
             else:
                 self.dictionary = abs_path
                 self.initialized = False
-        else:
+        else: # 如果没有指定字典 就用默认字典
             abs_path = self.dictionary
 
         with self.lock:

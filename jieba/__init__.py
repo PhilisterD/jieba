@@ -33,11 +33,17 @@ DICT_WRITING = {}
 
 pool = None
 
-re_userdict = re.compile('^(.+?)( [0-9]+)?( [a-z]+)?$', re.U)
+# 这里的re.U只在python2版本中使用 意思是使用Unicode字符集解析字符
+# 这里匹配三个部分  一个是用户传入词典的词 (.+?)  该词的频率 ( [0-9]+)? 和 该词的词性 ( [a-z]+)?$
+# 我們現在可以了解到，它會匹配一個字串，並將它分成三組。
+# 第一組是配對一至多個任意字元，直到空白出現為止。
+# 第二組是配對空白加上一至多個數字。
+# 第三組是配對空白加上一至多個英文字母。
+re_userdict = re.compile('^(.+?)( [0-9]+)?( [a-z]+)?$', re.U) 
 
-re_eng = re.compile('[a-zA-Z0-9]', re.U)
+re_eng = re.compile('[a-zA-Z0-9]', re.U) # 匹配单个英文或数字
 
-# \u4E00-\u9FD5a-zA-Z0-9+#&\._ : All non-space characters. Will be handled with re_han
+# \u4E00-\u9FD5a-zA-Z0-9+#&\._ : All non-space characters. Will be handled with re_han 
 # \r\n|\s : whitespace characters. Will not be handled.
 # re_han_default = re.compile("([\u4E00-\u9FD5a-zA-Z0-9+#&\._%]+)", re.U)
 # Adding "-" symbol in re_han_default
@@ -66,10 +72,18 @@ class Tokenizer(object):
         self.cache_file = None
 
     def __repr__(self):
-        return '<Tokenizer dictionary=%r>' % self.dictionary
+        return '<Tokenizer dictionary=%r>' % self.dictionary # 命令行调用是会打印该类使用了哪个字典
 
     @staticmethod
-    def gen_pfdict(f):
+    def gen_pfdict(f): # 生成前缀字典树
+        '''根据输入的字典生成字典和对应的频率
+        Args:
+            f: 字典的路径 open对象
+        return:
+            lfreq: 词及其频率字典
+                eg: {'AA制': 3, 'A': 0, 'AA': 0}
+            ltotal: 该字典文档的总的词数 并不等于 lfreq的大小，因为lfreq中还有每个词的前缀子词
+        '''
         lfreq = {}
         ltotal = 0
         f_name = resolve_filename(f)
@@ -81,7 +95,7 @@ class Tokenizer(object):
                 lfreq[word] = freq
                 ltotal += freq
                 for ch in xrange(len(word)):
-                    wfrag = word[:ch + 1]
+                    wfrag = word[:ch + 1]  # 选取每个词的前缀字词 eg： 中国人   wfrag = ['中', '中国', '中国人']
                     if wfrag not in lfreq:
                         lfreq[wfrag] = 0
             except ValueError:
@@ -90,7 +104,7 @@ class Tokenizer(object):
         f.close()
         return lfreq, ltotal
 
-    def initialize(self, dictionary=None):
+    def initialize(self, dictionary=None): # 初始化
         if dictionary:
             abs_path = _get_abs_path(dictionary)
             if self.dictionary == abs_path and self.initialized:
@@ -196,6 +210,8 @@ class Tokenizer(object):
         return DAG
 
     def __cut_all(self, sentence):
+        '''全模式切词
+        '''
         dag = self.get_DAG(sentence)
         old_j = -1
         eng_scan = 0
@@ -296,9 +312,9 @@ class Tokenizer(object):
             - cut_all: Model type. True for full pattern, False for accurate pattern.
             - HMM: Whether to use the Hidden Markov Model.
         """
-        is_paddle_installed = check_paddle_install['is_paddle_installed']
-        sentence = strdecode(sentence)
-        if use_paddle and is_paddle_installed:
+        is_paddle_installed = check_paddle_install['is_paddle_installed'] # 检查paddle是否安装
+        sentence = strdecode(sentence) # 对sentence进行解码
+        if use_paddle and is_paddle_installed: # 使用paddle模型进行分词
             # if sentence is null, it will raise core exception in paddle.
             if sentence is None or len(sentence) == 0:
                 return
@@ -309,20 +325,20 @@ class Tokenizer(object):
                     continue
                 yield sent
             return
-        re_han = re_han_default
-        re_skip = re_skip_default
+        re_han = re_han_default # re_han_default = re.compile("([\u4E00-\u9FD5a-zA-Z0-9+#&\._%\-]+)", re.U) 
+        re_skip = re_skip_default # re_skip_default = re.compile("(\r\n|\s)", re.U)
         if cut_all:
             cut_block = self.__cut_all
         elif HMM:
             cut_block = self.__cut_DAG
         else:
             cut_block = self.__cut_DAG_NO_HMM
-        blocks = re_han.split(sentence)
+        blocks = re_han.split(sentence) # 能匹配到的部分作为分割符
         for blk in blocks:
-            if not blk:
+            if not blk: # 切分之后为空
                 continue
-            if re_han.match(blk):
-                for word in cut_block(blk):
+            if re_han.match(blk): # 如果该部分在原句中
+                for word in cut_block(blk): # 对这部分利用cut_block进行切分
                     yield word
             else:
                 tmp = re_skip.split(blk)

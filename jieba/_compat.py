@@ -74,7 +74,7 @@ else:
 
 
 def strdecode(sentence):
-    if not isinstance(sentence, text_type):
+    if not isinstance(sentence, text_type): # text_type = str 判断setence是否为str
         try:
             sentence = sentence.decode('utf-8')
         except UnicodeDecodeError:

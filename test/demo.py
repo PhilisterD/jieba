@@ -1,5 +1,5 @@
 #encoding=utf-8
-from __future__ import unicode_literals
+from __future__ import unicode_literals # 默认将所有字符串都转成unicode字符串
 import sys
 sys.path.append("../")
 
@@ -29,13 +29,13 @@ print('-'*40)
 
 print('/'.join(jieba.cut('如果放到post中将出错。', HMM=False)))
 #如果/放到/post/中将/出错/。
-print(jieba.suggest_freq(('中', '将'), True))
+print(jieba.suggest_freq(('中', '将'), True)) 
 #494
 print('/'.join(jieba.cut('如果放到post中将出错。', HMM=False)))
 #如果/放到/post/中/将/出错/。
 print('/'.join(jieba.cut('「台中」正确应该不会被切开', HMM=False)))
 #「/台/中/」/正确/应该/不会/被/切开
-print(jieba.suggest_freq('台中', True))
+print(jieba.suggest_freq('台中', True)) # 添加建议切分的词
 #69
 print('/'.join(jieba.cut('「台中」正确应该不会被切开', HMM=False)))
 #「/台中/」/正确/应该/不会/被/切开

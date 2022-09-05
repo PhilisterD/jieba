@@ -192,6 +192,8 @@ class Tokenizer(object):
                               logtotal + route[x + 1][0], x) for x in DAG[idx])
 
     def get_DAG(self, sentence):
+        '''获得DAG 
+        '''
         self.check_initialized()
         DAG = {}
         N = len(sentence)
@@ -200,7 +202,7 @@ class Tokenizer(object):
             i = k
             frag = sentence[k]
             while i < N and frag in self.FREQ:
-                if self.FREQ[frag]:
+                if self.FREQ[frag]: # self.FREQ就是之前的 创建的字典 词和频率  第一次创建后会有缓存  直接读取
                     tmplist.append(i)
                 i += 1
                 frag = sentence[k:i + 1]
@@ -325,7 +327,7 @@ class Tokenizer(object):
                     continue
                 yield sent
             return
-        re_han = re_han_default # re_han_default = re.compile("([\u4E00-\u9FD5a-zA-Z0-9+#&\._%\-]+)", re.U) 
+        re_han = re_han_default # re_han_default = re.compile("([\u4E00-\u9FD5a-zA-Z0-9+#&\._%\-]+)", re.U)  匹配中文文本及相应字符
         re_skip = re_skip_default # re_skip_default = re.compile("(\r\n|\s)", re.U)
         if cut_all:
             cut_block = self.__cut_all
@@ -338,7 +340,7 @@ class Tokenizer(object):
             if not blk: # 切分之后为空
                 continue
             if re_han.match(blk): # 如果该部分在原句中
-                for word in cut_block(blk): # 对这部分利用cut_block进行切分
+                for word in cut_block(blk): # 对这部分利用cut_block进行切分 
                     yield word
             else:
                 tmp = re_skip.split(blk)

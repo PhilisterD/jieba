@@ -115,7 +115,7 @@ class Tokenizer(object):
         else: # 如果没有指定字典 就用默认字典
             abs_path = self.dictionary
 
-        with self.lock:
+        with self.lock: # 这种写法 进入锁时 会先执行acquire()方法  语句结束后会执行 release方法 目的是将该部分变成原子操作
             try:
                 with DICT_WRITING[abs_path]:
                     pass

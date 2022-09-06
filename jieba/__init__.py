@@ -190,13 +190,15 @@ class Tokenizer(object):
         if not self.initialized:
             self.initialize()
 
-    def calc(self, sentence, DAG, route): # 计算最大概率
+    def calc(self, sentence, DAG, route): # 计算最大概率 其中 route是个dict
         N = len(sentence)
         route[N] = (0, 0)
         logtotal = log(self.total)
         for idx in xrange(N - 1, -1, -1):
             route[idx] = max((log(self.FREQ.get(sentence[idx:x + 1]) or 1) -
                               logtotal + route[x + 1][0], x) for x in DAG[idx])
+
+
 
     def get_DAG(self, sentence):
         '''获得sentence的 DAG 
@@ -210,12 +212,13 @@ class Tokenizer(object):
             i = k
             frag = sentence[k] # frag是 sentence中的第k个字符
             while i < N and frag in self.FREQ: # 如果当前的字在 self.FREQ   # 考察从k 到 N这中间所有在 self.FREQ中的片段  将末尾编号添加到tmplist
-                if self.FREQ[frag]: # 如果 self.FREQ中存在 frag
+                if self.FREQ[frag]: # 如果 该值不为零  就是原词典中有 才加   如果原字典没有 就不加
                     tmplist.append(i) # 在tmplist中添加 当前字符的index
                 i += 1 # i向前移动一位
                 frag = sentence[k:i + 1] # 考察sentence k到i位置的片段
-            if not tmplist: # 如果tmplist为空  就是 从 k到N 位置没有片段在self.FREQ 就将 k添加到 tmplist中，就是一个有向无环图
+            if not tmplist: # 前缀字典没有的情况  直接将该单字放进去
                 tmplist.append(k)
+                # pass
             DAG[k] = tmplist # 构造sentence每个位置的 图列表 
         return DAG
         

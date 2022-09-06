@@ -105,6 +105,13 @@ class Tokenizer(object):
         return lfreq, ltotal
 
     def initialize(self, dictionary=None): # 初始化
+        '''就是加载前缀树的。
+        
+        如果用户指定就按用户的来，如果用户没有指定，就按照默认的来，另一方面如果
+        存在缓存，也就是之前生成好的前缀树字典，那就从缓存里直接拿，如果没有缓存，那就重新生成一次。
+
+        加载后的词典保存在 self.FREQ, self.total
+        '''
         if dictionary: # 如果指定了字典
             abs_path = _get_abs_path(dictionary)
             if self.dictionary == abs_path and self.initialized:
@@ -127,10 +134,10 @@ class Tokenizer(object):
             default_logger.debug("Building prefix dict from %s ..." % (abs_path or 'the default dictionary'))
             t1 = time.time()
             if self.cache_file:
-                cache_file = self.cache_file
+                cache_file = self.cache_file # 如果缓存文件存在 使用缓存文件
             # default dictionary
             elif abs_path == DEFAULT_DICT:
-                cache_file = "jieba.cache"
+                cache_file = "jieba.cache"  # 默认生成的缓存文件
             # custom dictionary
             else:
                 cache_file = "jieba.u%s.cache" % md5(
@@ -147,16 +154,16 @@ class Tokenizer(object):
                     "Loading model from cache %s" % cache_file)
                 try:
                     with open(cache_file, 'rb') as cf:
-                        self.FREQ, self.total = marshal.load(cf)
+                        self.FREQ, self.total = marshal.load(cf) # 加载缓存文件
                     load_from_cache_fail = False
                 except Exception:
                     load_from_cache_fail = True
 
-            if load_from_cache_fail:
-                wlock = DICT_WRITING.get(abs_path, threading.RLock())
+            if load_from_cache_fail: # 如果加载缓存文件失败
+                wlock = DICT_WRITING.get(abs_path, threading.RLock()) # 如果DICT_WRITING中没有 abs_path 返回 threading.RLock()
                 DICT_WRITING[abs_path] = wlock
                 with wlock:
-                    self.FREQ, self.total = self.gen_pfdict(self.get_dict_file())
+                    self.FREQ, self.total = self.gen_pfdict(self.get_dict_file()) # 如果加载缓存失败 就重新创建新的前缀字典
                     default_logger.debug(
                         "Dumping model to file cache %s" % cache_file)
                     try:
@@ -183,7 +190,7 @@ class Tokenizer(object):
         if not self.initialized:
             self.initialize()
 
-    def calc(self, sentence, DAG, route):
+    def calc(self, sentence, DAG, route): # 计算最大概率
         N = len(sentence)
         route[N] = (0, 0)
         logtotal = log(self.total)
@@ -192,56 +199,59 @@ class Tokenizer(object):
                               logtotal + route[x + 1][0], x) for x in DAG[idx])
 
     def get_DAG(self, sentence):
-        '''获得DAG 
+        '''获得sentence的 DAG 
+        #{0:[0], 1:[1,3,4], 2:[2], ... } 其中 1:[1，3，4]的解释是  从位置1到位置1、 位置1到位置3 、位置1到位置4的片段都在 self.FREQ中
         '''
-        self.check_initialized()
+        self.check_initialized() # 先读取前缀字典树
         DAG = {}
         N = len(sentence)
         for k in xrange(N):
             tmplist = []
             i = k
-            frag = sentence[k]
-            while i < N and frag in self.FREQ:
-                if self.FREQ[frag]: # self.FREQ就是之前的 创建的字典 词和频率  第一次创建后会有缓存  直接读取
-                    tmplist.append(i)
-                i += 1
-                frag = sentence[k:i + 1]
-            if not tmplist:
+            frag = sentence[k] # frag是 sentence中的第k个字符
+            while i < N and frag in self.FREQ: # 如果当前的字在 self.FREQ   # 考察从k 到 N这中间所有在 self.FREQ中的片段  将末尾编号添加到tmplist
+                if self.FREQ[frag]: # 如果 self.FREQ中存在 frag
+                    tmplist.append(i) # 在tmplist中添加 当前字符的index
+                i += 1 # i向前移动一位
+                frag = sentence[k:i + 1] # 考察sentence k到i位置的片段
+            if not tmplist: # 如果tmplist为空  就是 从 k到N 位置没有片段在self.FREQ 就将 k添加到 tmplist中，就是一个有向无环图
                 tmplist.append(k)
-            DAG[k] = tmplist
+            DAG[k] = tmplist # 构造sentence每个位置的 图列表 
         return DAG
+        
 
     def __cut_all(self, sentence):
-        '''全模式切词
+        '''全模式切词  yield模式返回sentence中的 字符 词片段和字母数字片段
         '''
-        dag = self.get_DAG(sentence)
+        dag = self.get_DAG(sentence) # 获得sentence的DAG
         old_j = -1
         eng_scan = 0
         eng_buf = u''
-        for k, L in iteritems(dag):
-            if eng_scan == 1 and not re_eng.match(sentence[k]):
+        # {0:[0], 1:[1,3,4], 2:[2], ... } 其中 1:[1，3，4]的解释是  从位置1到位置1、 位置1到位置3 、位置1到位置4的片段都在 self.FREQ中
+        for k, L in iteritems(dag): # 遍历dag词典  
+            if eng_scan == 1 and not re_eng.match(sentence[k]): # 如果eng_scan为1  并且 单字符sentence[k]不是字母或数字  如果前一个位置为数字或字母 当前位置不是数字或字母
                 eng_scan = 0
-                yield eng_buf
-            if len(L) == 1 and k > old_j:
-                word = sentence[k:L[0] + 1]
-                if re_eng.match(word):
-                    if eng_scan == 0:
-                        eng_scan = 1
-                        eng_buf = word
+                yield eng_buf # 返回eng_buf 返回字母数字片段
+            if len(L) == 1 and k > old_j: # 如果单字符 并且 k > old_j  # 处理单字符
+                word = sentence[k:L[0] + 1] # 取出该单字符 赋给word
+                if re_eng.match(word): # 如果该字符是字母或者数字 
+                    if eng_scan == 0: # eng_scan记录前一个字符的状态
+                        eng_scan = 1 # 将eng_scan变为1
+                        eng_buf = word # 将该字符赋值给eng_buf
                     else:
-                        eng_buf += word
-                if eng_scan == 0:
+                        eng_buf += word  # 如果前一个字符eng_scan=1 为字母或者数字  就将其拼接起来
+                if eng_scan == 0: # 如果该位置不是字母或者数字 前一个也不是字母或者数字 就直接返回 word
                     yield word
-                old_j = L[0]
-            else:
+                old_j = L[0] # old_j 取 L[0]
+            else: # 如果不是单字符 或者 k > old_j ?
                 for j in L:
                     if j > k:
-                        yield sentence[k:j + 1]
-                        old_j = j
-        if eng_scan == 1:
-            yield eng_buf
+                        yield sentence[k:j + 1] # 直接返回 长度大于1的词片段
+                        old_j = j # 标记处理到L的哪个部分
+        if eng_scan == 1: # 处理完dag了  eng_scan还是1  说明最后一个片段是单字符且是英文或者数字
+            yield eng_buf # 返回字母数字片段
 
-    def __cut_DAG_NO_HMM(self, sentence):
+    def __cut_DAG_NO_HMM(self, sentence): # 关闭HMM的精确模式
         DAG = self.get_DAG(sentence)
         route = {}
         self.calc(sentence, DAG, route)
@@ -330,11 +340,11 @@ class Tokenizer(object):
         re_han = re_han_default # re_han_default = re.compile("([\u4E00-\u9FD5a-zA-Z0-9+#&\._%\-]+)", re.U)  匹配中文文本及相应字符
         re_skip = re_skip_default # re_skip_default = re.compile("(\r\n|\s)", re.U)
         if cut_all:
-            cut_block = self.__cut_all
+            cut_block = self.__cut_all # 全模式
         elif HMM:
-            cut_block = self.__cut_DAG
+            cut_block = self.__cut_DAG # 精确模式
         else:
-            cut_block = self.__cut_DAG_NO_HMM
+            cut_block = self.__cut_DAG_NO_HMM # 关闭HMM的精确模式
         blocks = re_han.split(sentence) # 能匹配到的部分作为分割符
         for blk in blocks:
             if not blk: # 切分之后为空
